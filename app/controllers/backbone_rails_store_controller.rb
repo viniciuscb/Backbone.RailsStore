@@ -445,7 +445,7 @@ class BackboneRailsStoreController < ApplicationController
       # TODO: in case model has been erased on server, notify
       ids = model_info[:ids] || []
       model_class = model_info[:railsClass]
-      server_models = acl_scoped_class(model_class, :read).where(:id => ids.uniq)
+      server_models = acl_scoped_class(model_class, :read).where(:id => ids.uniq).all
       models_eager = {:models => {}, :relations => {}}
       fill_eager_refresh model_class, server_models, models_eager
       resp_models[model_info[:railsClass]] = server_models
