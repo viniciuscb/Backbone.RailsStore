@@ -213,7 +213,7 @@ class BackboneRailsStoreController < ApplicationController
                 server_model = acl_scoped_class(klass, :write).find(model['id'])
                 raise_error_hash(klass, 'no write permission') unless server_model
               else
-                server_model = klass.constantize.new(model)
+                server_model = klass.constantize.new()
                 server_model.cid = model['cid']
                 new_models[model['cid']] = server_model
                 models_ids[key.to_sym] = {} unless models_ids[key.to_sym]
@@ -227,15 +227,19 @@ class BackboneRailsStoreController < ApplicationController
 #              raise_error(server_model) unless updated
 
               model.each do |attr_key, attr|
-                if attr_key.match(/.*_id$/)
-                  if attr.to_s().match(/c[[:digit:]]*/)
-                    set_after_create.push({
-                                              :model => server_model,
-                                              :railsClass => klass,
-                                              :key => key,
-                                              :attr  => attr_key,
-                                              :temp_id => attr
-                                          })
+                if server_model.respond_to? (attr_key.to_s + '=').to_sym
+                  if attr_key.match(/.*_id$/)
+                    if attr.to_s().match(/c[[:digit:]]*/)
+                      set_after_create.push({
+                                                :model => server_model,
+                                                :railsClass => klass,
+                                                :key => key,
+                                                :attr  => attr_key,
+                                                :temp_id => attr
+                                            })
+                    else
+                        server_model[attr_key] = attr
+                    end
                   else
                     server_model[attr_key] = attr
                   end
