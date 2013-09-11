@@ -1,3 +1,4 @@
+# -*- encoding : utf-8 -*-
 ##
 # Backbone.RailsStore Routes Example file
 #
