@@ -740,6 +740,33 @@ class Backbone.RailsStore
         @_progressCounter = 0
         @_progressElement.hide() if @_progressElement
 
+  ###
+    verifyDestroyAvailability - verify if it is ok to destroy a model, by querying the server for dependent models.
+  ###
+  verifyDestroyAvailability: (options) ->
+    @_storeServer.clear()
+    @_storeServer.urlRoot = @_storeServer.verifyBeforeDestroyUrlRoot
+    xhr = @_storeServer.fetch
+      data: $.param({railsClass: options.model.railsClass, id: options.model.get('id')})
+      type: 'POST'
+      storeSync: true
+      silent: true
+      success: (model, resp) =>
+        try
+          if model.get('errors') or not model.get('can_destroy')
+            options.error(model.get('errors')) if options.error
+            return
+          options.success() if options.success
+        catch e
+          console.log(e)
+          @trigger('comm:fatal', e)
+          options.error() if options.error
+          throw e
+      error: =>
+        return if (@_abortingXhrs)
+        options.error() if options.error
+    @_doProgress(xhr) unless options.show_progress == false
+
   _processServerModelsResponse: (model, options) ->
     options = options || {}
     _.each model.get('models'), (modelsData, modelType) =>
@@ -1323,8 +1350,17 @@ class Backbone.RailsModel extends Backbone.Model
     if @isReadOnly()
       # Ignore destroy request on read only models
       return false
-    @_store.registerDestroyRequest(@)
-    @trigger('destroy', @)
+    if @verify_fks_before_destroy and @get('id')?
+      @_store.verifyDestroyAvailability
+        model: @
+        success: =>
+          @_store.registerDestroyRequest(@)
+          @trigger('destroy', @)
+        error: =>
+          alert('Não foi possível apagar, pois este item é também utilizado em outro ponto no sistema.')
+    else
+      @_store.registerDestroyRequest(@)
+      @trigger('destroy', @)
 
   ###
     toJSON - send cid in case new model
@@ -1442,10 +1478,11 @@ class Backbone.RailsCollection extends Backbone.Collection
   Backbone.RailsStoreServer - Simple model to interface with Rails - INTERNAL USE ONLY!
 ###
 class Backbone.RailsStoreServer extends Backbone.Model
-  fetchUrlRoot:  '/backbone_rails_store/refresh'
-  commitUrlRoot: '/backbone_rails_store/commit'
-  findUrlRoot:   '/backbone_rails_store/find'
-  authUrlRoot:   '/backbone_rails_store/auth'
+  fetchUrlRoot:               '/backbone_rails_store/refresh'
+  commitUrlRoot:              '/backbone_rails_store/commit'
+  findUrlRoot:                '/backbone_rails_store/find'
+  authUrlRoot:                '/backbone_rails_store/auth'
+  verifyBeforeDestroyUrlRoot: '/backbone_rails_store/verify_before_destroy'
 
   fetch: (options) ->
     options.beforeSend = (xhr) =>

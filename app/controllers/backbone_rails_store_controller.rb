@@ -384,8 +384,32 @@ class BackboneRailsStoreController < ApplicationController
     end
   end
 
+  def verify_before_destroy
+    response = {:can_destroy => true}
+    begin
+      klass = params[:railsClass].constantize
+      id = params[:id]
 
+      klass.transaction do
+        model = klass.find(id)
 
+        begin
+          model.destroy
+        rescue
+          response[:can_destroy] = false
+        end
+
+        raise ActiveRecord::Rollback
+      end
+
+    rescue Exception => exp
+      response = {errors: exp.errors}
+    end
+
+    respond_to do |format|
+      format.json { render json: response }
+    end
+  end
 
   private
 
