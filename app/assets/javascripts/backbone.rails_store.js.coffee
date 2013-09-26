@@ -57,6 +57,10 @@ class Backbone.RailsStore
   _requests: []
   _abortingXhrs: false
 
+  #Sometimes a commit must wait another operation to end
+  _pendentCommits: []
+  _commitBlocked = false
+
   ###
     Singleton Pattern
   ###
@@ -354,6 +358,11 @@ class Backbone.RailsStore
       commit:failed - if something wrong happened
   ###
   commit: (options) ->
+    if @_commitBlocked
+      @_pendentCommits.push () =>
+        @commit(options)
+      return
+
     options = options || {}
     commitData = {}
     _.each @_changedModels, (models, modelType) =>
@@ -728,22 +737,11 @@ class Backbone.RailsStore
     modelType = @getModelType(collection.modelType)
     delete @_searchedModels[modelType][collection.cid] if @_searchedModels[modelType]
 
-  _doProgress: (xhr) ->
-    @_requests.push(xhr)
-    if @_progressCounter >= 0 and @_progressElement
-      @_progressElement.show()
-    @_progressCounter++
-    xhr.always =>
-      @_requests = _.without(@_requests, xhr)
-      @_progressCounter--
-      if @_progressCounter <= 0
-        @_progressCounter = 0
-        @_progressElement.hide() if @_progressElement
-
   ###
     verifyDestroyAvailability - verify if it is ok to destroy a model, by querying the server for dependent models.
   ###
   verifyDestroyAvailability: (options) ->
+    @_blockCommits()
     @_storeServer.clear()
     @_storeServer.urlRoot = @_storeServer.verifyBeforeDestroyUrlRoot
     xhr = @_storeServer.fetch
@@ -757,15 +755,39 @@ class Backbone.RailsStore
             options.error(model.get('errors')) if options.error
             return
           options.success() if options.success
+          @_unblockCommits()
         catch e
           console.log(e)
           @trigger('comm:fatal', e)
           options.error() if options.error
+          @_unblockCommits()
           throw e
       error: =>
         return if (@_abortingXhrs)
         options.error() if options.error
+        @_unblockCommits()
     @_doProgress(xhr) unless options.show_progress == false
+
+  _doProgress: (xhr) ->
+    @_requests.push(xhr)
+    if @_progressCounter >= 0 and @_progressElement
+      @_progressElement.show()
+    @_progressCounter++
+    xhr.always =>
+      @_requests = _.without(@_requests, xhr)
+      @_progressCounter--
+      if @_progressCounter <= 0
+        @_progressCounter = 0
+        @_progressElement.hide() if @_progressElement
+
+  _blockCommits: ->
+    @_commitBlocked = true
+
+  _unblockCommits: ->
+    @_commitBlocked = false
+    while @_pendentCommits.length > 0
+      commit = @_pendentCommits.shift()
+      commit()
 
   _processServerModelsResponse: (model, options) ->
     options = options || {}
