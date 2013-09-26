@@ -755,13 +755,14 @@ class Backbone.RailsStore
             options.error(model.get('errors')) if options.error
             return
           options.success() if options.success
-          @_unblockCommits()
         catch e
           console.log(e)
           @trigger('comm:fatal', e)
           options.error() if options.error
-          @_unblockCommits()
           throw e
+        finally
+          @_unblockCommits()
+
       error: =>
         return if (@_abortingXhrs)
         options.error() if options.error
