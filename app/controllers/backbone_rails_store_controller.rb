@@ -214,7 +214,7 @@ class BackboneRailsStoreController < ApplicationController
                 server_model = acl_scoped_class(klass, :write).find(model['id'])
                 raise_error_hash(klass, 'no write permission') unless server_model
               else
-                server_model = klass.constantize.new()
+                server_model = acl_scoped_class(klass, :write).new()
                 server_model.cid = model['cid']
                 new_models[model['cid']] = server_model
                 models_ids[key.to_sym] = {} unless models_ids[key.to_sym]
@@ -226,6 +226,9 @@ class BackboneRailsStoreController < ApplicationController
               #server_model.assign_attributes(model)
 #              updated = server_model.update_attributes(model)
 #              raise_error(server_model) unless updated
+
+              #TODO set support for other authorization roles
+              authorizer = server_model.class.active_authorizer[:default]
 
               model.each do |attr_key, attr|
                 if server_model.respond_to? (attr_key.to_s + '=').to_sym
@@ -239,10 +242,15 @@ class BackboneRailsStoreController < ApplicationController
                                                 :temp_id => attr
                                             })
                     else
+                      #prevent attributions of not attr_accessible parameters
+                      unless authorizer.deny?(attr_key)
                         server_model[attr_key] = attr
+                      end
                     end
                   else
-                    server_model[attr_key] = attr
+                    unless authorizer.deny?(attr_key)
+                      server_model[attr_key] = attr
+                    end
                   end
                 end
               end
@@ -250,6 +258,8 @@ class BackboneRailsStoreController < ApplicationController
 #              raise_error(server_model) unless saved
             end
           end
+
+          params[:refreshModels] = {} unless params[:refreshModels]
 
           #save sequence -
           server_models.sort { |a,b| compare_server_models(a, b, set_after_create, new_models) }
@@ -263,7 +273,6 @@ class BackboneRailsStoreController < ApplicationController
               key = javascript_classes[server_model.class.name.to_sym]
               #here: problem if server_model class name is not the same as the javascript model class name
               models_ids[key.to_sym][:"#{server_model.cid}"] = server_model.id
-              params[:refreshModels] = {} unless params[:refreshModels]
               params[:refreshModels][key] = {
                   :railsClass => server_model.class.name,
                   :ids => []
