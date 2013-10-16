@@ -244,12 +244,12 @@ class BackboneRailsStoreController < ApplicationController
                     else
                       #prevent attributions of not attr_accessible parameters
                       unless authorizer.deny?(attr_key)
-                        server_model[attr_key] = attr
+                        server_model.send(attr_key.to_s + '=', attr)
                       end
                     end
                   else
                     unless authorizer.deny?(attr_key)
-                      server_model[attr_key] = attr
+                      server_model.send(attr_key.to_s + '=', attr)
                     end
                   end
                 end
