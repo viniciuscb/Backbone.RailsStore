@@ -367,8 +367,9 @@ class Backbone.RailsStore
     commitData = {}
     _.each @_changedModels, (models, modelType) =>
       _.each models, (model) =>
-        commitData[modelType] = {railsClass: model.railsClass, data: []} unless commitData[modelType]
-        commitData[modelType].data.push(model.toJSON())
+        if model.markedForSave
+          commitData[modelType] = {railsClass: model.railsClass, data: []} unless commitData[modelType]
+          commitData[modelType].data.push(model.toJSON())
 
     destroyData = {}
     _.each @_deletedModels, (model) =>
@@ -887,6 +888,15 @@ class Backbone.RailsModel extends Backbone.Model
     Internal store reference
   ###
   _store: null
+
+
+  ###
+    markedForSave - All models are marked to be sent in the next commit by default.
+
+    Useful when one wants to create a context to commit just some models while having
+    other models dirty in the store
+  ###
+  markedForSave: true
 
   ###
     belongsTo - Relations where reference resides in this object
@@ -1469,7 +1479,7 @@ class Backbone.RailsCollection extends Backbone.Collection
     else
       return super
 
-    throw "Invalid model type #{@store.getModelType(model)} for collection #{@}"
+    throw "Invalid model type #{@_store.getModelType(model)} for collection #{@}"
 
   _prepareModel: (attrs, options) ->
     if attrs instanceof Backbone.RailsModel
