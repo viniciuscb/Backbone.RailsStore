@@ -1064,7 +1064,7 @@ class Backbone.RailsModel extends Backbone.Model
 
     # If we have, deliver
     val = super
-    if val
+    if val != undefined and val != null
       return val
 
     # Check if this is a belongsTo relation
